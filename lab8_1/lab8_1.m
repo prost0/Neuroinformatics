@@ -1,0 +1,72 @@
+filename = 'C:\Users\now20\Desktop\lab8\sun_month_mean_activity.txt';
+delimiterIn = ' ';
+sun_dataset = importdata(filename, delimiterIn);
+sun_dataset = sun_dataset(1690:3227, 4);
+x = smooth(sun_dataset, 12);
+
+D = 5;
+ntrain = 500;
+nval = 100;
+ntest = 50;
+trainInd = 1 : ntrain;  % 1..500
+valInd = ntrain + 1 : ntrain + nval;  % 501..600
+testInd = ntrain + nval + 1 : ntrain + nval + ntest;  % 601..650
+
+trainSet = x(1: ntrain + nval + ntest)';
+X = con2seq(trainSet);
+
+
+net = timedelaynet(1: D, 8, 'trainlm');
+net.layers{1}.transferFcn = 'tansig';
+net.layers{2}.transferFcn = 'purelin';
+net.divideFcn = 'divideind';
+net.divideParam.trainInd = trainInd;
+net.divideParam.valInd = valInd;
+net.divideParam.testInd = testInd;
+
+net = configure(net, X, X);
+
+net = init(net);
+
+net.trainParam.epochs = 2000;
+net.trainParam.max_fail = 2000;
+net.trainParam.goal = 1.0e-5;
+
+[Xs, Xi, Ai, Ts] = preparets(net, X, X); 
+net = train(net, Xs, Ts);
+
+view(net);
+
+x_train = x(trainInd)';
+[Xs, Xi, Ai, Ts] = preparets(net, con2seq(x_train), con2seq(x_train));
+
+Y = net(Xs, Xi, Ai);
+
+figure;
+hold on;
+plot(x_train, '-b');
+plot([cell2mat(Xi) cell2mat(Y)], '-r');
+grid on;
+
+figure;
+plot(x_train - [cell2mat(Xi) cell2mat(Y)]);
+grid on;
+
+x_test = x(testInd)';
+[Xs, Xi, Ai, Ts] = preparets(net, con2seq(x_test), con2seq(x_test));
+
+x_val = x(valInd)';
+Xi = x_val(length(x_val) - D + 1: length(x_val));
+Xi = con2seq(Xi);
+
+Y = net(Xs, Xi, Ai);
+
+figure;
+hold on;
+plot(x_test, '-b');
+plot([cell2mat(Xi) cell2mat(Y)], '-r');
+grid on;
+
+figure;
+plot(x_test - [cell2mat(Xi) cell2mat(Y)]);
+grid on;
